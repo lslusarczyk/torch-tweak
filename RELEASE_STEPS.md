@@ -8,12 +8,12 @@ This document contains all the steps required to make a new release of Torch Twe
 
 As a helper, we use in this guide this variable:
 ```bash
-  VERSION=0.1.0rc1   # PEP 440 version, including an optional rc suffix
+  VERSION=0.1.0rc1   # New version, including an optional rc suffix
 ```
 
 **Note:**
 > Before doing the final release, it's recommended to prepare a pre-release version - a "release candidate"
-> (or "rc" in short). This requires a PEP 440 suffix on VERSION, for example `0.1.0rc1`. When all tests and checks
+> (or "rc" in short). This requires adding, e.g., `rc1` to the VERSION string. When all tests and checks
 > end properly, you can follow up with the final release. If any fix is required, it should be included in
 > another rc version (e.g., `0.1.0rc2`).
 
@@ -40,8 +40,7 @@ Prepare changes for the release:
     uv lock
     for example in examples/*/pyproject.toml; do uv lock --directory "$(dirname "${example}")"; done
     ```
-  - The fallback is the last released version in PEP 440 form (`0.1.0rc1`, with no hyphen before `rc`),
-    for a build on a machine without access to github's tags
+  - The fallback is the last released version, for a build on a machine without access to github's tags
 - Update `version` and `date-released` in `CITATION.cff`
 - Once all changes are done, [build locally](CONTRIBUTING.md#building-packages) from a clean worktree (and/or verify changes on CI), including:
   - `git status --porcelain` prints nothing. The packaging workflow fails when it does not, so a dirty tree is not packed
