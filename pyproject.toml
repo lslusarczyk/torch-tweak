@@ -100,8 +100,6 @@ dev = [
 requires = ["hatchling>=1.27.0", "hatch-vcs>=0.4.0"]
 build-backend = "hatchling.build"
 
-[tool.hatch.build.hooks.custom]
-
 [tool.hatch.build.targets.wheel]
 packages = ["torch_tweak"]
 

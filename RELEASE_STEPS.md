@@ -43,7 +43,8 @@ Prepare changes for the release:
   - The fallback is the last released version in PEP 440 form (`0.1.0rc1`, with no hyphen before `rc`),
     for a build on a machine without access to github's tags
 - Update `version` and `date-released` in `CITATION.cff`
-- Once all changes are done, [build locally](CONTRIBUTING.md#building-packages) (and/or verify changes on CI), including:
+- Once all changes are done, [build locally](CONTRIBUTING.md#building-packages) from a clean worktree (and/or verify changes on CI), including:
+  - `git status --porcelain` prints nothing. The packaging workflow fails when it does not, so a dirty tree is not packed
   - Verify if scanners/linters/checkers passed
   - Make sure packaging workflow builds properly (you can check that on your fork)
   - Verify if version is set properly
