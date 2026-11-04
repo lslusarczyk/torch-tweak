@@ -18,6 +18,8 @@ SPDX-License-Identifier: Apache-2.0
   for a module that a framework keeps calling. The weights then exist twice on the device (#117)
 - feat (breaking): every strategy raises `NoCorrectBackendError` when none of its backends works for a graph.
   The error of the last failed backend is its cause.
+- feat: `OnlineTunedModule` tunes every new input shape on its first call,
+  for a module that a framework owns and keeps calling (#87)
 
 ## 0.4.1
 
