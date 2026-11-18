@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Findings that the nightly Trivy scan does not fail on.
+# One vulnerability or secret rule ID per line, with a comment that says why
+# it does not apply and an `exp:YYYY-MM-DD` date after which it fails again:
+#   CVE-2026-12345 exp:2027-01-31
