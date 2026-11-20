@@ -4,6 +4,7 @@
 
 import hashlib
 import json
+import uuid
 from collections.abc import Hashable
 from copy import deepcopy
 from logging import getLogger
@@ -15,6 +16,7 @@ import torch.nn as nn
 
 from torch_tweak.torch.backend.backend import Backend
 from torch_tweak.torch.backend.openvino import OpenVINOBackend, OpenVINOBackendConfig
+from torch_tweak.torch.checkpoint.checkpoint_header import tuning_environment
 from torch_tweak.torch.config import torch_tweak_cache_dir
 from torch_tweak.torch.module.graph_spec import GraphSpec
 from torch_tweak.torch.module.sample_metadata import SampleMetadata
@@ -60,7 +62,7 @@ class OnlineTunedModule:
     Only the backend of the last call stays active, since an OpenVINO model holds its own copy of the weights.
     Returning to other shapes activates their backend again, which can recompile it.
 
-    The selection is saved under the cache directory, keyed by the weights and the shapes.
+    The selection is saved under the cache directory, keyed by the weights, the architecture, the libraries, the hardware and the shapes.
     A later process with the same weights builds the saved backend for those shapes and skips tuning.
 
     The module stays where it is and keeps its `forward`. Its owner can keep calling and patching it.
@@ -104,7 +106,7 @@ class OnlineTunedModule:
         self._backends: dict[Hashable, Backend] = {}
         self._active: Backend | None = None
         self._failed: set[Hashable] = set()
-        self._weights_fingerprint: str | None = None
+        self._model_key: str | None = None
 
     @property
     def backends(self) -> dict[Hashable, Backend]:
@@ -129,7 +131,7 @@ class OnlineTunedModule:
         self._deactivate_active()
         # A strategy can update the shapes of the spec it gets, so the dict key must not be that object.
         graph_spec = GraphSpec(
-            name=_shapes_digest(metadata, key[1]),
+            name=_digest(metadata.to_dict()),
             input_spec=SampleMetadata.from_inputs(*sample, strict=True),
             output_spec=SampleMetadata.from_outputs(output, strict=True),
         )
@@ -148,7 +150,7 @@ class OnlineTunedModule:
         self._deactivate_active()
         self._backends.clear()
         self._failed.clear()
-        self._weights_fingerprint = None
+        self._model_key = None
 
     def _deactivate_active(self) -> None:
         if self._active is not None:
@@ -156,11 +158,22 @@ class OnlineTunedModule:
             self._active = None
 
     def _cache_dir(self, graph_spec: GraphSpec) -> Path:
-        if self._weights_fingerprint is None:
-            self._weights_fingerprint = weights_fingerprint(self._module)
-        cache_dir = torch_tweak_cache_dir() / self._name / self._weights_fingerprint / graph_spec.name
+        if self._model_key is None:
+            self._model_key = self._compute_model_key()
+        cache_dir = torch_tweak_cache_dir() / self._name / self._model_key / graph_spec.name
         secure_mkdir(cache_dir)
         return cache_dir
+
+    def _compute_model_key(self) -> str:
+        try:
+            return _digest([weights_fingerprint(self._module), repr(self._module), tuning_environment()])
+        except Exception:
+            logger.warning(
+                "Cannot fingerprint the weights of %s. Its selection is not shared with other processes.",
+                self._name,
+                exc_info=True,
+            )
+            return f"process-{uuid.uuid4().hex[:16]}"
 
     def _restore(self, graph_spec: GraphSpec, sample: tuple[tuple, dict], cache_dir: Path) -> Backend | None:
         selected = cache_dir / SELECTED_BACKEND_FILE
@@ -190,6 +203,5 @@ class OnlineTunedModule:
         return backend
 
 
-def _shapes_digest(metadata: SampleMetadata, shapes: tuple) -> str:
-    described = json.dumps([metadata.to_dict(), repr(shapes)], sort_keys=True, default=str)
-    return hashlib.sha256(described.encode()).hexdigest()[:16]
+def _digest(described: Any) -> str:
+    return hashlib.sha256(json.dumps(described, sort_keys=True, default=str).encode()).hexdigest()[:16]

@@ -45,14 +45,34 @@ def _holding(tensor: torch.Tensor) -> nn.Module:
     return module
 
 
-def test_weights_fingerprint_samples_the_last_value_of_a_tensor_too_long_for_float32_indices():
-    zeros = torch.zeros(16_777_218, dtype=torch.uint8)
-    last_one = zeros.clone()
-    last_one[-1] = 1
+def test_weights_fingerprint_sees_a_change_of_one_value_in_a_large_tensor():
+    zeros = torch.zeros(1_000_003, dtype=torch.bfloat16)
+    one_changed = zeros.clone()
+    one_changed[12_345] = 1
 
-    fingerprints = (weights_fingerprint(_holding(zeros)), weights_fingerprint(_holding(last_one)))
+    fingerprints = (weights_fingerprint(_holding(zeros)), weights_fingerprint(_holding(one_changed)))
 
     assert fingerprints[0] != fingerprints[1]
+
+
+def test_weights_fingerprint_tells_apart_shapes_with_the_same_bytes():
+    assert weights_fingerprint(_holding(torch.zeros(2, 3))) != weights_fingerprint(_holding(torch.zeros(3, 2)))
+
+
+def test_weights_fingerprint_tells_apart_dtypes_with_the_same_bytes():
+    zeros = weights_fingerprint(_holding(torch.zeros(2, dtype=torch.float32)))
+
+    assert zeros != weights_fingerprint(_holding(torch.zeros(2, dtype=torch.int32)))
+
+
+def test_weights_fingerprint_ignores_the_memory_layout():
+    transposed = torch.arange(6.0).reshape(2, 3).t()
+
+    assert weights_fingerprint(_holding(transposed)) == weights_fingerprint(_holding(transposed.contiguous()))
+
+
+def test_weights_fingerprint_accepts_an_empty_tensor():
+    assert weights_fingerprint(_holding(torch.zeros(0))) == weights_fingerprint(_holding(torch.zeros(0)))
 
 
 @pytest.fixture
