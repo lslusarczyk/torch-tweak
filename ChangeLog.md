@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 - feat: `OpenVINOBackendConfig(offload_module=False)` leaves the module on its device after conversion,
   for a module that a framework keeps calling. The weights then exist twice on the device (#117)
 - feat (breaking): every strategy raises `NoCorrectBackendError` when none of its backends works for a graph.
-  `OneBackendStrategy` raises it with the backend error as its cause.
+  The error of the last failed backend is its cause.
 
 ## 0.4.1
 
