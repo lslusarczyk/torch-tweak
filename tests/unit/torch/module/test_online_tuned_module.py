@@ -7,7 +7,7 @@ import torch
 
 from tests.toy_backends import BuildFailsBackend, SleepBackend
 from tests.utilities.helpers import requires_leo
-from torch_tweak.torch import HighestThroughputStrategy, OnlineTunedModule
+from torch_tweak.torch import HighestThroughputStrategy, OnlineTunedModule, TuneStrategy
 
 
 class CountingStrategy(HighestThroughputStrategy):
@@ -166,6 +166,21 @@ def test_shape_that_failed_tuning_is_not_tuned_again():
 
     torch.testing.assert_close(actual, torch.tensor([[8.0, 10.0]]))
     assert (strategy.tune_calls, online.backends) == (1, {})
+
+
+class OutOfSpaceStrategy(TuneStrategy):
+    def _tune(self, module, name, graph_spec, data, device, cache_dir):
+        raise OSError("No space left on device")
+
+    def _describe_parts(self):
+        return []
+
+
+def test_tuning_errors_other_than_no_correct_backend_are_raised():
+    online = OnlineTunedModule(doubling(), "doubling", strategy=OutOfSpaceStrategy())
+
+    with pytest.raises(OSError, match="No space left on device"):
+        online(torch.tensor([[1.0, 3.0]]))
 
 
 @requires_leo

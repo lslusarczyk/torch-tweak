@@ -20,7 +20,9 @@ SPDX-License-Identifier: Apache-2.0
   The error of the last failed backend is its cause.
 - feat: `OnlineTunedModule` tunes every new input shape on its first call,
   for a module that a framework owns and keeps calling.
-  Only the backend of the last call stays active, so tuned shapes do not each keep a copy of the weights (#87)
+  Only the backend of the last call stays active, so tuned shapes do not each keep a copy of the weights.
+  Shapes that no backend runs keep running the module and are not tuned again until `reset()`.
+  Any other tuning error, such as a full disk, reaches the caller (#87)
 
 ## 0.4.1
 
