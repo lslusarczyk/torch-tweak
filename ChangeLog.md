@@ -32,6 +32,7 @@ SPDX-License-Identifier: Apache-2.0
 - feat: `OnlineTunedModule` saves the selected backend per model, shapes, device type and strategy, and a later process restores it without tuning.
   The model covers every weight value, `repr(module)`, and the library and hardware versions.
   `OpenVINOBackendConfig(reuse_ir=True)` compiles the saved IR instead of converting the module again (#88)
+- fix: a new `OnlineTunedModule` removes the private directories of processes that ended without cleanup, such as killed ones
 
 ## 0.4.1
 
