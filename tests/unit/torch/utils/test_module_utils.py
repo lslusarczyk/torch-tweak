@@ -94,6 +94,19 @@ def test_weights_fingerprint_ignores_the_memory_layout():
     assert weights_fingerprint(_holding(transposed)) == weights_fingerprint(_holding(transposed.contiguous()))
 
 
+def _registered_in_order(names: list[str]) -> nn.Module:
+    module = nn.Module()
+    for name in names:
+        module.register_buffer(name, torch.tensor([float(len(name))]))
+    return module
+
+
+def test_weights_fingerprint_ignores_the_registration_order():
+    in_order = weights_fingerprint(_registered_in_order(["weight", "bias"]))
+
+    assert in_order == weights_fingerprint(_registered_in_order(["bias", "weight"]))
+
+
 def test_weights_fingerprint_names_an_empty_tensor():
     assert weights_fingerprint(_holding(torch.zeros(0))) != weights_fingerprint(nn.Module())
 
