@@ -12,7 +12,11 @@ import torch
 import torch.nn as nn
 
 from tests.utilities.helpers import requires_xpu
-from torch_tweak.torch.backend.xpu_graph_backend import XPUGraphBackend, XPUGraphBackendConfig
+from torch_tweak.torch.backend.xpu_graph_backend import (
+    XPUGraphBackend,
+    XPUGraphBackendConfig,
+    _assert_close,
+)
 from torch_tweak.torch.checkpoint.storage_tasks import TorchLoadTask, TorchSaveTask
 from torch_tweak.torch.module.graph_spec import GraphSpec
 from torch_tweak.torch.module.recording_module import Sample
@@ -602,6 +606,25 @@ def test_wrong_replay_of_a_module_that_is_not_deterministic_is_rejected(torch_de
 
     with pytest.raises(RuntimeError, match="differs from eager"):
         backend.build(module, static_graph_spec(module, [sample]), [sample], torch_device, tmp_path)
+
+
+def test_eager_rerun_with_different_tensor_shape_is_rejected():
+    actual = torch.full((2,), 50.0)
+    expected = torch.zeros(2)
+    rerun = torch.full((1,), 100.0)
+
+    with pytest.raises(RuntimeError, match="eager rerun tensor does not match"):
+        _assert_close(actual, expected, rerun)
+
+
+def test_sparse_replay_error_is_not_hidden_by_mean_noise():
+    expected = torch.zeros(10_000)
+    rerun = torch.full_like(expected, 0.01)
+    actual = expected.clone()
+    actual[0] = 1.0
+
+    with pytest.raises(RuntimeError, match="differs from eager"):
+        _assert_close(actual, expected, rerun)
 
 
 def test_cpu_is_rejected(tmp_path):

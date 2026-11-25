@@ -619,42 +619,62 @@ def _assert_close(actual: Any, expected: Any, rerun: Any) -> None:
     """Raises when replay outputs are too far from eager outputs. expected and rerun are two eager runs."""
     actual_leaves, actual_spec = tree_flatten(actual)
     expected_leaves, expected_spec = tree_flatten(expected)
-    rerun_leaves, _ = tree_flatten(rerun)
+    rerun_leaves, rerun_spec = tree_flatten(rerun)
     if actual_spec != expected_spec:
         raise RuntimeError("XPU graph output structure does not match eager")
+    if rerun_spec != expected_spec:
+        raise RuntimeError("XPU graph output structure differs between eager runs")
     for got, ref, rerun_leaf in zip(actual_leaves, expected_leaves, rerun_leaves, strict=True):
         if isinstance(ref, torch.Tensor):
             _assert_tensor_close(got, ref, rerun_leaf)
             continue
         got_tensors = _state_tensors(got)
         ref_tensors = _state_tensors(ref)
+        rerun_tensors = _state_tensors(rerun_leaf)
         if not got_tensors and not ref_tensors:
             if got != ref:
                 raise RuntimeError("XPU graph output does not match eager")
             continue
-        if len(got_tensors) != len(ref_tensors):
+        if len(got_tensors) != len(ref_tensors) or len(got_tensors) != len(rerun_tensors):
             raise RuntimeError("XPU graph output does not match eager")
-        for got_tensor, ref_tensor, rerun_tensor in zip(
-            got_tensors, ref_tensors, _state_tensors(rerun_leaf), strict=True
-        ):
+        for got_tensor, ref_tensor, rerun_tensor in zip(got_tensors, ref_tensors, rerun_tensors, strict=True):
             _assert_tensor_close(got_tensor, ref_tensor, rerun_tensor)
+
+
+def _nanmax(tensor: torch.Tensor) -> float:
+    """Maximum, excluding NaN values."""
+    values = tensor[~torch.isnan(tensor)]
+    return values.max().item() if values.numel() else float("nan")
 
 
 def _assert_tensor_close(got: Any, ref: torch.Tensor, rerun: torch.Tensor) -> None:
     """Raises when one replay tensor is too far from its eager tensor.
 
     When rerun, a second eager run, differs from ref, the module is not deterministic.
-    Replay then passes when its mean distance to ref is at most EAGER_NOISE_FACTOR times that of rerun.
+    Replay then passes when its mean and maximum distances to ref are at most EAGER_NOISE_FACTOR times
+    those of rerun.
     A replay that ignores its new inputs lands as far from ref as the output of another input.
     """
     if not isinstance(got, torch.Tensor) or got.shape != ref.shape or got.dtype != ref.dtype:
         raise RuntimeError("XPU graph output tensor does not match eager")
+    if (
+        not isinstance(rerun, torch.Tensor)
+        or rerun.shape != ref.shape
+        or rerun.dtype != ref.dtype
+        or rerun.device != ref.device
+    ):
+        raise RuntimeError("XPU graph eager rerun tensor does not match eager")
     rtol, atol = (1e-2, 1e-2) if ref.dtype in (torch.float16, torch.bfloat16) else (1e-3, 1e-3)
     if torch.allclose(got, ref, rtol=rtol, atol=atol, equal_nan=True):
         return
-    if ref.is_floating_point() and not torch.allclose(rerun, ref, rtol=rtol, atol=atol, equal_nan=True):
-        noise = (rerun.float() - ref.float()).abs().nanmean().item()
-        if (got.float() - ref.float()).abs().nanmean().item() <= EAGER_NOISE_FACTOR * noise:
+    if (ref.is_floating_point() or ref.is_complex()) and not torch.allclose(
+        rerun, ref, rtol=rtol, atol=atol, equal_nan=True
+    ):
+        noise = (rerun - ref).abs()
+        difference = (got - ref).abs()
+        if difference.nanmean().item() <= EAGER_NOISE_FACTOR * noise.nanmean().item() and _nanmax(
+            difference
+        ) <= EAGER_NOISE_FACTOR * _nanmax(noise):
             return
     if got.is_floating_point() or got.is_complex():
         difference = (got - ref).abs().max().item()
